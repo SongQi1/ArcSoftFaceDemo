@@ -65,8 +65,19 @@ public class FaceEngineServiceImpl implements FaceEngineService {
         poolConfig.setMaxTotal(threadPoolSize);
         poolConfig.setMinIdle(threadPoolSize);
         poolConfig.setLifo(false);
-        extractFaceObjectPool = new GenericObjectPool(new FaceEngineFactory(appId, sdkKey, FunctionConfiguration.builder().supportFaceDetect(true).supportFaceRecognition(true).supportAge(true).supportGender(true).build()), poolConfig);//底层库算法对象池
-        compareFaceObjectPool = new GenericObjectPool(new FaceEngineFactory(appId, sdkKey, FunctionConfiguration.builder().supportFaceRecognition(true).build()), poolConfig);//底层库算法对象池
+        extractFaceObjectPool = new GenericObjectPool(
+                new FaceEngineFactory(appId, sdkKey,
+                        FunctionConfiguration.builder()
+                                .supportFaceDetect(true)
+                                .supportFaceRecognition(true)
+                                .supportAge(true)
+                                .supportGender(true)
+                                .supportFace3dAngle(true)
+                                .build()), poolConfig);//底层库算法对象池
+        compareFaceObjectPool = new GenericObjectPool(
+                new FaceEngineFactory(appId, sdkKey,
+                        FunctionConfiguration.builder()
+                                .supportFaceRecognition(true).build()), poolConfig);//底层库算法对象池
 
     }
 

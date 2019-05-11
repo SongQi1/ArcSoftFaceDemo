@@ -12,6 +12,7 @@ public class Application {
 
 
     public static void main(String[] args) {
+        System.out.println("java.library.path=" + System.getProperty("java.library.path"));
         SpringApplication.run(Application.class, args);
     }
 
