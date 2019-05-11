@@ -45,7 +45,7 @@ public class FaceEngineFactory extends BasePooledObjectFactory<FaceEngine> {
      * 多方向检测(ASF_OP_0_HIGHER_EXT)，
      * 建议使用单一指定方向检测，性能比多方向检测更佳
      */
-    private DetectOrient detectFaceOrientPriority= DetectOrient.ASF_OP_270_ONLY;
+    private DetectOrient detectFaceOrientPriority= DetectOrient.ASF_OP_0_HIGHER_EXT;
 
 
     public FaceEngineFactory(String appId, String sdkKey, FunctionConfiguration functionConfiguration) {

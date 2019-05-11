@@ -4,6 +4,7 @@ package com.itboyst.facedemo.util;
 import com.itboyst.facedemo.base.ImageInfo;
 
 import javax.imageio.ImageIO;
+import java.awt.*;
 import java.awt.color.ColorSpace;
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorConvertOp;
@@ -81,6 +82,26 @@ public class ImageUtil {
         //获取rgb数据
         imageInfo.rgbData = ((DataBufferByte) (dstImage.getRaster().getDataBuffer())).getData();
         return imageInfo;
+    }
+
+
+    /**
+     * 给图片增加文字水印
+     * @param bufImg
+     * @param img
+     * @param text
+     * @param font
+     * @param color
+     * @param x
+     * @param y
+     */
+    public void mark(BufferedImage bufImg, Image img, String text, Font font, Color color, int x, int y) {
+        Graphics2D g = bufImg.createGraphics();
+        g.drawImage(img, 0, 0, bufImg.getWidth(), bufImg.getHeight(), null);
+        g.setColor(color);
+        g.setFont(font);
+        g.drawString(text, x, y);
+        g.dispose();
     }
 
 }
