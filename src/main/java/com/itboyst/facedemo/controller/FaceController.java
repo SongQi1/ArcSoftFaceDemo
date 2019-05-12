@@ -16,6 +16,7 @@ import com.itboyst.facedemo.base.Results;
 import com.itboyst.facedemo.enums.ErrorCodeEnum;
 import com.itboyst.facedemo.util.ImageUtil;
 import com.arcsoft.face.FaceInfo;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -162,17 +163,20 @@ public class FaceController {
 
     @RequestMapping(value = "/detectFaces", method = RequestMethod.POST)
     @ResponseBody
-    public List<FaceInfo> detectFaces(String image) throws IOException {
-        byte[] bytes = Base64Utils.decodeFromString(image.trim());
+    public List<FaceInfo> detectFaces(@RequestParam String image) throws IOException {
+        logger.info("接收参数：image:{}", image);
+        byte[] bytes = Base64Utils.decodeFromUrlSafeString(image.trim());
 
-        InputStream inputStream = new ByteArrayInputStream(bytes);
-        ImageInfo imageInfo = ImageUtil.getRGBData(inputStream);
+//        InputStream inputStream = new ByteArrayInputStream(bytes);
+//        ImageInfo imageInfo = ImageUtil.getRGBData(inputStream);
+//        if (inputStream != null) {-
+//            inputStream.close();
+//        }
 
-        if (inputStream != null) {
-            inputStream.close();
-        }
+        ByteArrayInputStream in = new ByteArrayInputStream(bytes);
+        BufferedImage bufferedImage = ImageIO.read(in);
+        ImageInfo imageInfo = ImageUtil.bufferedImage2ImageInfo(bufferedImage);
         List<FaceInfo> faceInfoList = faceEngineService.detectFaces(imageInfo);
-
         return faceInfoList;
     }
 

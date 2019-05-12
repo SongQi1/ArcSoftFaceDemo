@@ -57,7 +57,7 @@ public class FaceEngineFactory extends BasePooledObjectFactory<FaceEngine> {
 
 
     @Override
-    public FaceEngine create() throws Exception {
+    public FaceEngine create() {
 
         EngineConfiguration engineConfiguration= EngineConfiguration.builder()
                 .functionConfiguration(functionConfiguration)

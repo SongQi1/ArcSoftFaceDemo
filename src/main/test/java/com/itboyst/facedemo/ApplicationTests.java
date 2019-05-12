@@ -1,5 +1,9 @@
 package com.itboyst.facedemo;
 
+import cn.hutool.core.bean.BeanUtil;
+import com.alibaba.druid.util.HttpClientUtils;
+import com.arcsoft.face.FaceInfo;
+import com.itboyst.facedemo.camera.CameraUtil;
 import org.bytedeco.javacpp.*;
 import org.bytedeco.javacpp.opencv_core.IplImage;
 import org.bytedeco.javacpp.opencv_core.Mat;
@@ -12,15 +16,23 @@ import org.junit.runner.RunWith;
 import org.opencv.core.Core;
 import org.opencv.imgproc.Imgproc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.util.Base64Utils;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestTemplate;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.IOException;
+import java.net.URLEncoder;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.util.*;
 
 import static org.bytedeco.javacpp.opencv_imgproc.LINE_4;
 import static org.bytedeco.javacpp.opencv_imgproc.LINE_AA;
@@ -82,6 +94,9 @@ public class ApplicationTests {
 
     @Test
     public void testRecordVedio() throws Exception {
+
+
+
 
         Loader.load(opencv_objdetect.class);
         //本机摄像头默认0，这里使用javacv的抓取器，至于使用的是ffmpeg还是opencv，请自行查看源码
@@ -173,81 +188,105 @@ public class ApplicationTests {
     }
 
     @Test
-    public void testOpenCV() throws InterruptedException{
+    public void testOpenCV() throws InterruptedException, IOException {
+
+        RestTemplate restTemplate = new RestTemplate();
         opencv_videoio.VideoCapture videoCapture = null;
         //遍历查找摄像头
-        int index = -1;
-        for(; index<2; index++){
+
+        for(int index = 0; index<2; index++){
             videoCapture = new opencv_videoio.VideoCapture(index);
             if(videoCapture.grab()){
                 //找到摄像头设备，退出遍历
                 System.err.println("当前摄像头：" + index);
-                break;
-            }
-            //没找到设备，释放资源
-            videoCapture.close();
-        }
-        if(videoCapture == null || !videoCapture.isOpened()){
-            System.err.println("无法找到摄像头，请检查是否存在摄像头。" );
-            return;
-        }
+                // 水印文字位置
+                Point point = new Point(10, 80);
+                // 颜色，使用黄色
+                Scalar scalar = new Scalar(0, 255, 255, 0);
+                //数字格式化
+                DecimalFormat df = new DecimalFormat("0.##");
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
-        // 水印文字位置
-        Point point = new Point(10, 80);
-        // 颜色，使用黄色
-        Scalar scalar = new Scalar(0, 255, 255, 0);
-        //数字格式化
-        DecimalFormat df = new DecimalFormat("0.##");
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                //使用java的JFrame显示图像
+                CanvasFrame canvasFrame = new CanvasFrame("摄像头", CanvasFrame.getDefaultGamma()/2.2);
+                //javacv提供的转换器，方便将mat转换为Frame
+                OpenCVFrameConverter.ToIplImage iplImageConverter = new OpenCVFrameConverter.ToIplImage();
+                Java2DFrameConverter javaConverter = new Java2DFrameConverter();
+                Mat mat = new Mat();
+                double start = System.currentTimeMillis();
+                double end;
+                // 图像透明权重值,0-1之间
+                double alpha = 0.5;
 
-        //使用java的JFrame显示图像
-        CanvasFrame canvasFrame = new CanvasFrame("摄像头", CanvasFrame.getDefaultGamma()/2.2);
-        //javacv提供的转换器，方便将mat转换为Frame
-        OpenCVFrameConverter.ToIplImage iplImageConverter = new OpenCVFrameConverter.ToIplImage();
-        Java2DFrameConverter javaConverter = new Java2DFrameConverter();
-        Mat mat = new Mat();
-        double start = System.currentTimeMillis();
-        double end;
-        // 图像透明权重值,0-1之间
-        double alpha = 0.5;
-
-        Mat logo = opencv_imgcodecs.imread("icon.png");
+                Mat logo = opencv_imgcodecs.imread("icon.png");
 
 
-        for(int i=0; canvasFrame.isVisible() ;i++) {
-            //重新获取mat
-            videoCapture.retrieve(mat);
-            //是否采集到摄像头数据
-            if (videoCapture.grab()) {
-                //读取一帧mat图像
-                if (videoCapture.read(mat)) {
-                    end = System.currentTimeMillis();
-                    if(mat != null){
-                        //添加水印文字
-                        String msg = sdf.format(new Date()) + " frames:"+ i + " fps:" + df.format((end-start)/1000.0);
-                        opencv_imgproc.putText(mat, msg, point, opencv_imgproc.CV_FONT_VECTOR0, 0.5, scalar, 1, 20, false);
+                for(int i=0; canvasFrame.isVisible() ;i++) {
+                    //重新获取mat
+                    videoCapture.retrieve(mat);
+                    //是否采集到摄像头数据
+                    if (videoCapture.grab()) {
+                        //读取一帧mat图像
+                        if (videoCapture.read(mat)) {
+                            end = System.currentTimeMillis();
+                            if(mat != null){
+                                //添加水印文字
+                                String msg = sdf.format(new Date()) + " frames:"+ i + " fps:" + df.format((end-start)/1000.0);
+                                opencv_imgproc.putText(mat, msg, point, opencv_imgproc.CV_FONT_VECTOR0, 0.5, scalar, 1, 20, false);
 
-                        //添加矩形框
-                        Point point1 = new Point(10+i, 50+i);
-                        Point point2 = new Point(200+i, 200+i);
-                        opencv_imgproc.rectangle(mat, point1, point2, scalar, 2, LINE_AA,2);
+                                //添加矩形框
+                                Point point1 = new Point(10+i, 50+i);
+                                Point point2 = new Point(300+i, 200+i);
+                                opencv_imgproc.rectangle(mat, point1, point2, scalar, 1, LINE_AA,2);
 
-                        // 添加图片
-                        Mat ROI = mat.apply(new opencv_core.Rect(10, 10,logo.cols(), logo.rows()));
-                        opencv_core.addWeighted(ROI, alpha, logo, 1.0 - alpha, 0.0, ROI);
+                                // 添加图片
+                                Mat ROI = mat.apply(new opencv_core.Rect(10, 10,logo.cols(), logo.rows()));
+                                opencv_core.addWeighted(ROI, alpha, logo, 1.0 - alpha, 0.0, ROI);
+                            }
+
+                            //开始人脸检测
+                            BufferedImage buffImg = javaConverter.convert(iplImageConverter.convert(mat));
+                            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+                            ImageIO.write(buffImg, "jpg", outputStream);
+                            byte[] bytes1 = outputStream.toByteArray();
+                            String imageBase64Str = Base64Utils.encodeToUrlSafeString(bytes1);
+                            MultiValueMap<String, String> request = new LinkedMultiValueMap<>();
+                            request.add("image", imageBase64Str);
+                            List<?> resp = restTemplate.postForObject("http://127.0.0.1:8080/detectFaces", request, List.class);
+                            if(resp != null && resp.size() > 0){
+                                for(Object obj : resp){
+                                    FaceInfo faceInfo = BeanUtil.mapToBean((Map<?, ?>) obj, FaceInfo.class, true);
+                                    System.out.println("检测到人脸。faceInfo : " + faceInfo.toString());
+                                }
+                            }
+
+
+                            //将bufferedImage对象输出到磁盘上
+                            //  ImageIO.write(buffImg,"jpg",new File("img" + i +".jpg"));
+
+                            //  opencv_highgui.imshow("eguid", mat);该opencv方法windows下会无响应
+                            canvasFrame.showImage(iplImageConverter.convert(mat));
+                            start = end;
+                        }
+                        mat.release();//释放mat
                     }
-                    BufferedImage buffImg = javaConverter.convert(iplImageConverter.convert(mat));
-                    //将bufferedImage对象输出到磁盘上
-                    //  ImageIO.write(buffImg,"jpg",new File("img" + i +".jpg"));
-
-                    //  opencv_highgui.imshow("eguid", mat);该opencv方法windows下会无响应
-                    canvasFrame.showImage(iplImageConverter.convert(mat));
-                    start = end;
+                    Thread.sleep(45);
                 }
-                mat.release();//释放mat
+            }else if(videoCapture == null || !videoCapture.isOpened()){
+                //没找到设备，释放资源
+                videoCapture.close();
+                System.err.println("无法找到摄像头["+ index+"]，请检查是否存在摄像头。" );
+                return;
             }
-            Thread.sleep(45);
+
         }
+    }
+
+    @Test
+    public void testInitCamera(){
+
+        CameraUtil.initCamera(1);
+
     }
 
 }
