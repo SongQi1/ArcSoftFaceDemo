@@ -1,40 +1,35 @@
 package com.itboyst.facedemo;
 
 import cn.hutool.core.bean.BeanUtil;
-import com.alibaba.druid.util.HttpClientUtils;
 import com.arcsoft.face.FaceInfo;
+import com.arcsoft.face.Rect;
 import com.itboyst.facedemo.camera.CameraUtil;
+import com.itboyst.facedemo.dto.FaceRecognizeResDto;
+import org.apache.commons.lang3.StringUtils;
 import org.bytedeco.javacpp.*;
 import org.bytedeco.javacpp.opencv_core.IplImage;
 import org.bytedeco.javacpp.opencv_core.Mat;
 import org.bytedeco.javacpp.opencv_core.Point;
 import org.bytedeco.javacpp.opencv_core.Scalar;
-import org.bytedeco.javacpp.opencv_imgproc;
 import org.bytedeco.javacv.*;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.opencv.core.Core;
-import org.opencv.imgproc.Imgproc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.ResponseEntity;
-import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.util.Base64Utils;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+
 import org.springframework.web.client.RestTemplate;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
-import java.net.URLEncoder;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
 
-import static org.bytedeco.javacpp.opencv_imgproc.LINE_4;
 import static org.bytedeco.javacpp.opencv_imgproc.LINE_AA;
 
 
@@ -94,10 +89,6 @@ public class ApplicationTests {
 
     @Test
     public void testRecordVedio() throws Exception {
-
-
-
-
         Loader.load(opencv_objdetect.class);
         //本机摄像头默认0，这里使用javacv的抓取器，至于使用的是ffmpeg还是opencv，请自行查看源码
         FrameGrabber grabber = FrameGrabber.createDefault(0);
@@ -109,6 +100,9 @@ public class ApplicationTests {
         IplImage grabbedImage = iplImageConverter.convert(grabber.grabFrame());
         int width = grabbedImage.width();
         int height = grabbedImage.height();
+
+        System.out.println("image width:" + width);
+        System.out.println("image height:" + height);
 
         //录制器
         FrameRecorder recorder = FrameRecorder.createDefault("output.flv", width, height);
@@ -149,10 +143,16 @@ public class ApplicationTests {
 
             Mat mat = iplImageConverter.convertToMat(grabber.grabFrame());
             // 加文字水印，opencv_imgproc.putText（图片，水印文字，文字位置，字体，字体大小，字体颜色，字体粗度，文字反锯齿，是否翻转文字）
-            opencv_imgproc.putText(mat, "songqi", point2, opencv_imgproc.CV_FONT_VECTOR0, 2.2, scalar2, 1, 0,false);
+            opencv_imgproc.putText(mat, "宋祁", point2, opencv_imgproc.CV_FONT_VECTOR0, 2.2, scalar2, 1, 0,false);
             // 翻转字体，文字平滑处理（即反锯齿）
             opencv_imgproc.putText(mat, "songqi", point3, opencv_imgproc.CV_FONT_VECTOR0, 2.2, scalar2, 1, 20,true);
             opencv_imgproc.putText(mat, sdf.format(new Date()), point1, opencv_imgproc.CV_FONT_ITALIC, 0.8, scalar1,2, 20, false);
+
+            //添加矩形框
+            opencv_imgproc.rectangle(mat, new opencv_core.Rect(200,200, 200, 200), scalar1, 1, LINE_AA,0);
+//            opencv_imgproc.rectangle(mat, new Point(200, 200), new Point(400, 400), scalar1, 1, LINE_AA,3);
+//            opencv_imgproc.rectangle(mat, new Point(200, 200), new Point(400, 400), scalar1, 1, LINE_AA,4);
+            opencv_imgproc.rectangle(mat, new Point(200, 200), new Point(400, 400), scalar1, 1, LINE_AA,5);
             //在窗口显示处理后的图像
             canvasFrame.showImage(iplImageConverter.convert(mat));
 
@@ -189,7 +189,6 @@ public class ApplicationTests {
 
     @Test
     public void testOpenCV() throws InterruptedException, IOException {
-
         RestTemplate restTemplate = new RestTemplate();
         opencv_videoio.VideoCapture videoCapture = null;
         //遍历查找摄像头
@@ -217,10 +216,7 @@ public class ApplicationTests {
                 double end;
                 // 图像透明权重值,0-1之间
                 double alpha = 0.5;
-
                 Mat logo = opencv_imgcodecs.imread("icon.png");
-
-
                 for(int i=0; canvasFrame.isVisible() ;i++) {
                     //重新获取mat
                     videoCapture.retrieve(mat);
@@ -228,20 +224,20 @@ public class ApplicationTests {
                     if (videoCapture.grab()) {
                         //读取一帧mat图像
                         if (videoCapture.read(mat)) {
+                            //抓取一帧视频并将其转换为图像
                             end = System.currentTimeMillis();
                             if(mat != null){
                                 //添加水印文字
                                 String msg = sdf.format(new Date()) + " frames:"+ i + " fps:" + df.format((end-start)/1000.0);
                                 opencv_imgproc.putText(mat, msg, point, opencv_imgproc.CV_FONT_VECTOR0, 0.5, scalar, 1, 20, false);
 
-                                //添加矩形框
-                                Point point1 = new Point(10+i, 50+i);
-                                Point point2 = new Point(300+i, 200+i);
-                                opencv_imgproc.rectangle(mat, point1, point2, scalar, 1, LINE_AA,2);
-
-                                // 添加图片
-                                Mat ROI = mat.apply(new opencv_core.Rect(10, 10,logo.cols(), logo.rows()));
+                                // 添加logo图片
+                                Mat ROI = mat.apply(new opencv_core.Rect(0, 0,logo.cols(), logo.rows()));
                                 opencv_core.addWeighted(ROI, alpha, logo, 1.0 - alpha, 0.0, ROI);
+                            }
+                            if(i == 0){
+                                // 保存第一帧图片到本地
+                                opencv_imgcodecs.imwrite("cover.jpg", mat);
                             }
 
                             //开始人脸检测
@@ -252,11 +248,24 @@ public class ApplicationTests {
                             String imageBase64Str = Base64Utils.encodeToUrlSafeString(bytes1);
                             MultiValueMap<String, String> request = new LinkedMultiValueMap<>();
                             request.add("image", imageBase64Str);
-                            List<?> resp = restTemplate.postForObject("http://127.0.0.1:8080/detectFaces", request, List.class);
+                            outputStream.flush();
+                            outputStream.close();
+
+                            List<?> resp = restTemplate.postForObject("http://127.0.0.1:8080/faceRecognize", request, List.class);
                             if(resp != null && resp.size() > 0){
                                 for(Object obj : resp){
-                                    FaceInfo faceInfo = BeanUtil.mapToBean((Map<?, ?>) obj, FaceInfo.class, true);
+                                    FaceRecognizeResDto faceInfo = BeanUtil.mapToBean((Map<?, ?>) obj, FaceRecognizeResDto.class, true);
+                                    Rect rect = faceInfo.getRect();
                                     System.out.println("检测到人脸。faceInfo : " + faceInfo.toString());
+
+                                    //在人脸上添加矩形框
+                                    opencv_imgproc.rectangle(mat, new opencv_core.Rect(rect.getLeft(), rect.getTop(), (rect.getRight()-rect.getLeft()), (rect.getBottom()-rect.getTop())), scalar, 1, LINE_AA,0);
+                                    if(StringUtils.isNotBlank(faceInfo.getName())){
+                                        int x = rect.getLeft() + (rect.getRight()-rect.getLeft())/2 -20;
+                                        int y = rect.getTop()-20;
+                                        opencv_imgproc.putText(mat, faceInfo.getName(), new Point(x, y), opencv_imgproc.CV_FONT_VECTOR0, 0.5, scalar, 1, 20, false);
+                                    }
+
                                 }
                             }
 

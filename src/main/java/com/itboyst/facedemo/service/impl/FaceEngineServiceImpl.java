@@ -4,6 +4,7 @@ import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollectionUtil;
 import com.itboyst.facedemo.dao.mapper.UserFaceInfoMapper;
 import com.itboyst.facedemo.domain.UserFaceInfo;
+import com.itboyst.facedemo.dto.FaceRecognizeResDto;
 import com.itboyst.facedemo.dto.ProcessInfo;
 import com.itboyst.facedemo.factory.FaceEngineFactory;
 import com.itboyst.facedemo.service.FaceEngineService;
@@ -21,6 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Service;
 import javax.annotation.PostConstruct;
 import java.math.BigDecimal;
@@ -91,7 +93,7 @@ public class FaceEngineServiceImpl implements FaceEngineService {
                 .expireAfterAccess(2, TimeUnit.HOURS)
                 .build(new CacheLoader<Integer, List<FaceUserInfo>>() {
                     @Override
-                    public List<FaceUserInfo> load(Integer groupId) throws Exception {
+                    public List<FaceUserInfo> load(Integer groupId) {
                         UserFaceInfo userFaceInfo = new UserFaceInfo();
                         userFaceInfo.setGroupId(groupId);
                         List<UserFaceInfo> userFaceInfoList = userFaceInfoMapper.selectList(userFaceInfo);
@@ -234,8 +236,8 @@ public class FaceEngineServiceImpl implements FaceEngineService {
         FaceFeature targetFaceFeature = new FaceFeature();
         targetFaceFeature.setFeatureData(faceFeature);
         List<FaceUserInfo> faceInfoList = faceGroupCache.get(groupId);//从缓存中提取人脸库
-
-        List<List<FaceUserInfo>> faceUserInfoPartList = Lists.partition(faceInfoList, 1000);//分成1000一组，多线程处理
+        //分成1000一组，多线程处理
+        List<List<FaceUserInfo>> faceUserInfoPartList = Lists.partition(faceInfoList, 1000);
         CompletionService<List<FaceUserInfo>> completionService = new ExecutorCompletionService(executorService);
         for (List<FaceUserInfo> part : faceUserInfoPartList) {
             completionService.submit(new CompareFaceTask(part, targetFaceFeature));
@@ -252,10 +254,77 @@ public class FaceEngineServiceImpl implements FaceEngineService {
         return resultFaceInfoList;
     }
 
+    @Override
+    public List<FaceRecognizeResDto> recognizeFaces(ImageInfo imageInfo) throws InterruptedException {
+        List<FaceRecognizeResDto> recognizedFaceList = new ArrayList<>();
+        //人脸检测
+        List<FaceInfo> faceInfoList = this.detectFaces(imageInfo);
+        if(faceInfoList != null && faceInfoList.size() > 0){
+            FaceEngine faceEngine = null;
+            try {
+                //获取引擎对象
+                faceEngine = extractFaceObjectPool.borrowObject();
+                for(FaceInfo face : faceInfoList ){
+                    FaceRecognizeResDto recognizedFace = new FaceRecognizeResDto();
+                    recognizedFace.setRect(face.getRect());
+
+                    FaceFeature faceFeature = new FaceFeature();
+                    //提取人脸特征
+                    faceEngine.extractFaceFeature(imageInfo.getRgbData(), imageInfo.getWidth(), imageInfo.getHeight(), ImageFormat.CP_PAF_BGR24, face, faceFeature);
+
+
+                    /**
+                    注意：这个groupId是方便从数据库中拉取人脸特征数据到缓存中。
+                    例如：如果规定每个groupId只能放1000个人脸数据，在人脸注册的时候，可以由程序自动控制groupId的值。
+                     在人脸对比的时候，如果某一个groupId没有查出相似的人脸数据，则应该换下一个groupId，直到所有groupid
+                     都遍历完
+                    这里由于测试，统一将groupId设置为101。
+                     */
+                    //到人脸数据库中对比
+                    List<FaceUserInfo> similarList = compareFaceFeature(faceFeature.getFeatureData(), 101);
+                    if(similarList != null && similarList.size() > 0){
+                        //取相似度最高的那个
+                        FaceUserInfo similarFace = similarList.get(0);
+                        /*//调用年龄、性别、三维角度检测
+                        faceEngine.process(imageInfo.getRgbData(), imageInfo.getWidth(), imageInfo.getHeight(), ImageFormat.CP_PAF_BGR24, faceInfoList, FunctionConfiguration.builder().supportAge(true).supportGender(true).build());
+                        //性别提取
+                        List<GenderInfo> genderInfoList = new ArrayList<GenderInfo>();
+                        faceEngine.getGender(genderInfoList);
+
+                        //年龄提取
+                        List<AgeInfo> ageInfoList = new ArrayList<>();
+                        faceEngine.getAge(ageInfoList);
+
+                        //三维角度提取*/
+                        BeanUtil.copyProperties(similarFace, recognizedFace);
+                        recognizedFaceList.add(recognizedFace);
+                    }else{
+                        //换下一个grouupId继续对比
+                        //TODO
+
+                        //最终都添加到识别的列表中。
+                        recognizedFaceList.add(recognizedFace);
+                    }
+
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                if (faceEngine != null) {
+                    //释放引擎对象
+                    extractFaceObjectPool.returnObject(faceEngine);
+                }
+            }
+        }
+        return recognizedFaceList;
+    }
+
 
     private class CompareFaceTask implements Callable<List<FaceUserInfo>> {
 
+        //从数据库中拉取到缓存中的人脸列表
         private List<FaceUserInfo> faceUserInfoList;
+        //待识别的人脸列表
         private FaceFeature targetFaceFeature;
 
 

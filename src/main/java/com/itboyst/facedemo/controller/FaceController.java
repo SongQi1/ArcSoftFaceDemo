@@ -5,6 +5,7 @@ import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.util.RandomUtil;
 import com.itboyst.facedemo.domain.UserFaceInfo;
+import com.itboyst.facedemo.dto.FaceRecognizeResDto;
 import com.itboyst.facedemo.dto.FaceSearchResDto;
 import com.itboyst.facedemo.dto.ProcessInfo;
 import com.itboyst.facedemo.service.FaceEngineService;
@@ -134,6 +135,7 @@ public class FaceController {
             if (CollectionUtil.isNotEmpty(processInfoList)) {
                 //人脸检测
                 List<FaceInfo> faceInfoList = faceEngineService.detectFaces(imageInfo);
+                System.out.println("rect:" + faceInfoList.get(0).getRect());
                 int left = faceInfoList.get(0).getRect().getLeft();
                 int top = faceInfoList.get(0).getRect().getTop();
                 int width = faceInfoList.get(0).getRect().getRight() - left;
@@ -178,6 +180,18 @@ public class FaceController {
         ImageInfo imageInfo = ImageUtil.bufferedImage2ImageInfo(bufferedImage);
         List<FaceInfo> faceInfoList = faceEngineService.detectFaces(imageInfo);
         return faceInfoList;
+    }
+
+
+    @RequestMapping(value = "/faceRecognize", method = RequestMethod.POST)
+    @ResponseBody
+    public List<FaceRecognizeResDto> faceRecognize(@RequestParam String image) throws IOException, InterruptedException {
+        logger.info("接收参数：image:{}", image);
+        byte[] bytes = Base64Utils.decodeFromUrlSafeString(image.trim());
+        ByteArrayInputStream in = new ByteArrayInputStream(bytes);
+        BufferedImage bufferedImage = ImageIO.read(in);
+        ImageInfo imageInfo = ImageUtil.bufferedImage2ImageInfo(bufferedImage);
+        return faceEngineService.recognizeFaces(imageInfo);
     }
 
 }
